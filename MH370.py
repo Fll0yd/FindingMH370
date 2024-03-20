@@ -20,8 +20,8 @@ from requests.exceptions import Timeout, RequestException
 from typing import List, Dict, Any
 from bs4 import BeautifulSoup
 import aiohttp
-from your_instagram_module import InstagramAPI
-from your_youtube_module import YouTubeAPI
+from instagram_private_api import Client
+from googleapiclient import discovery
 import tkinter as tk
 from tkinter import ttk
 import shutil
