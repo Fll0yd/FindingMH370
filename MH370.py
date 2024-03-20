@@ -52,7 +52,7 @@ class OptimizedMH370Data(Model):
     sentiment = CharField()
     entities = TextField()
     topics = TextField()
-
+    
     class Meta:
         database = db
 
@@ -61,6 +61,7 @@ def migrate_data():
     try:
         # Retrieve data from existing MH370Data model
         old_data = list(MH370Data.select())
+        print(f"Found {len(old_data)} items in MH370Data.")
         # Migrate data to optimized schema
         with db.atomic():
             for item in old_data:
@@ -75,6 +76,7 @@ def migrate_data():
                     entities=item.entities,
                     topics=item.topics
                 )
+        print("Data migration completed.")
     except Exception as e:
         logger.error(f'Error migrating data: {e}')
         logger.exception("Exception occurred during data migration.")
@@ -276,8 +278,8 @@ class MH370Spider:
         self.model = gensim.models.LdaModel.load('topic_model')
         # Initialize the web scraper
         self.scraper = MH370WebScraper()
-        self.instagram_api = InstagramAPI()
-        self.youtube_api = YouTubeAPI()
+        self.instagram_data = InstagramAPI()
+        self.youtube_data = YouTubeAPI()
 
     # Google
     async def parse(self, response):
