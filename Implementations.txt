@@ -1,0 +1,23 @@
+Twitter API Key:
+Go to the Twitter Developer Platform website: Twitter Developer Platform.
+Sign in with your Twitter account.
+Create a new Twitter Developer App.
+Once your app is created, navigate to the "Keys and tokens" section to obtain your API key, API secret key, Access token, and Access token secret.
+
+Reddit API Keys:
+Go to the Reddit Developer Portal: Reddit Developer Portal.
+Log in with your Reddit account.
+Create a new Reddit app.
+After creating the app, you'll find the client ID and client secret in the app settings.
+
+Instagram Access Token:
+Instagram uses OAuth 2.0 for authentication. You'll need to create an app in the Facebook Developer Dashboard since Instagram API access is now part of Facebook's Graph API.
+Go to the Facebook Developer Dashboard: Facebook Developer.
+Create a new app and configure it to access the Instagram Graph API.
+Generate an access token for your app, allowing it to access Instagram data.
+
+YouTube API Key:
+Go to the Google Cloud Console: Google Cloud Console.
+Create a new project or select an existing one.
+Enable the YouTube Data API v3 for your project.
+Create credentials for your project and obtain an API key.
