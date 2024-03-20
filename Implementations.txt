@@ -1,23 +1,91 @@
-Twitter API Key:
-Go to the Twitter Developer Platform website: Twitter Developer Platform.
-Sign in with your Twitter account.
-Create a new Twitter Developer App.
-Once your app is created, navigate to the "Keys and tokens" section to obtain your API key, API secret key, Access token, and Access token secret.
 
-Reddit API Keys:
-Go to the Reddit Developer Portal: Reddit Developer Portal.
-Log in with your Reddit account.
-Create a new Reddit app.
-After creating the app, you'll find the client ID and client secret in the app settings.
+please provide corrected code to fix this as per the official rules of the game.
 
-Instagram Access Token:
-Instagram uses OAuth 2.0 for authentication. You'll need to create an app in the Facebook Developer Dashboard since Instagram API access is now part of Facebook's Graph API.
-Go to the Facebook Developer Dashboard: Facebook Developer.
-Create a new app and configure it to access the Instagram Graph API.
-Generate an access token for your app, allowing it to access Instagram data.
+is this code correct and complete as per the official rules of the game RISK? is not please provide corrected code.
 
-YouTube API Key:
-Go to the Google Cloud Console: Google Cloud Console.
-Create a new project or select an existing one.
-Enable the YouTube Data API v3 for your project.
-Create credentials for your project and obtain an API key.
+
+
+39. The `RiskGame` class does not implement the rule that a player can choose to not move any troops during their turn.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+40. The `RiskGame` class does not implement the rule that a player can choose to not do anything during their turn.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+41. The `RiskGame` class does not implement the rule that a player can choose to end their turn at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+42. The `RiskGame` class does not implement the rule that a player can choose to surrender at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+43. The `RiskGame` class does not implement the rule that a player can choose to propose a draw at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+44. The `RiskGame` class does not implement the rule that a player can choose to accept a draw proposal at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+45. The `RiskGame` class does not implement the rule that a player can choose to reject a draw proposal at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+46. The `RiskGame` class does not implement the rule that a player can choose to propose a truce at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+47. The `RiskGame` class does not implement the rule that a player can choose to accept a truce proposal at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+48. The `RiskGame` class does not implement the rule that a player can choose to reject a truce proposal at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+49. The `RiskGame` class does not implement the rule that a player can choose to propose an alliance at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+50. The `RiskGame` class does not implement the rule that a player can choose to accept an alliance proposal at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+51. The `RiskGame` class does not implement the rule that a player can choose to reject an alliance proposal at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+52. The `RiskGame` class does not implement the rule that a player can choose to propose a peace treaty at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+53. The `RiskGame` class does not implement the rule that a player can choose to accept a peace treaty proposal at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+54. The `RiskGame` class does not implement the rule that a player can choose to reject a peace treaty proposal at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+55. The `RiskGame` class does not implement the rule that a player can choose to propose a ceasefire at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+56. The `RiskGame` class does not implement the rule that a player can choose to accept a ceasefire proposal at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+57. The `RiskGame` class does not implement the rule that a player can choose to reject a ceasefire proposal at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+58. The `RiskGame` class does not implement the rule that a player can choose to propose a non-aggression pact at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+
+59. The `RiskGame` class does not implement the rule that a player can choose to accept a non-aggression pact proposal at any time.
+please provide corrected code to fix this as per the official rules of the game.
+
+

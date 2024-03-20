@@ -3,23 +3,23 @@
 To generate API documentation using Sphinx:
 
 1. Install Sphinx:
-    ```bash
-    pip install sphinx
-    ```
+    
+	pip install sphinx
+    
 
 2. Initialize Sphinx in your project directory:
-    ```bash
-    sphinx-quickstart
-    ```
+    
+	sphinx-quickstart
+    
 
 3. Follow the prompts to configure Sphinx.
 
 4. Write docstrings in your code following the reStructuredText format.
 
 5. Build the documentation:
-    ```bash
-    sphinx-build -b html sourcedir builddir
-    ```
+    
+	sphinx-build -b html sourcedir builddir
+    
 
 Replace `sourcedir` with the directory containing your `.rst` files and `builddir` with the output directory for the built documentation.
 
