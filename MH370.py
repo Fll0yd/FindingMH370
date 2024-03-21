@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 # Set timeouts and buffer sizes for network operations
 NETWORK_TIMEOUT = 10  # seconds
 BUFFER_SIZE = 8192  # bytes
+MAX_RETRIES = 5  # Replace 5 with the number of maximum retries you want
 
 # Initialize SQLite database with optimizations
 db = SqliteDatabase('mh370_optimized.db', pragmas=(
