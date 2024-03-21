@@ -20,8 +20,8 @@ import yaml
 from bs4 import BeautifulSoup
 from googleapiclient import discovery
 from instagram_private_api import Client
-from peewee import CharField, Model, SqliteDatabase, TextField
-from playhouse.sqlite_ext import SqliteExtDatabase
+import pymongo
+from pymongo import MongoClient
 from requests.exceptions import RequestException, Timeout
 from scrapy import Selector
 from scrapy.exceptions import NotConfigured
@@ -38,12 +38,35 @@ NETWORK_TIMEOUT = 10  # seconds
 BUFFER_SIZE = 8192  # bytes
 MAX_RETRIES = 5  # Replace 5 with the number of maximum retries you want
 
-# Initialize SQLite database with optimizations
-db = SqliteDatabase('mh370_optimized.db', pragmas=(
-    ('journal_mode', 'wal'),  # Write-Ahead Logging for better concurrency
-    ('cache_size', -1024 * 64)  # Set cache size to 64MB for better performance
-))
+# Connect to MongoDB
+client = MongoClient ('mongodb://localhost:27017/')
+db = client['mh370']
+collection = db['data']
 
+# Insert report into MongoDB collection
+report = {
+  'time': '2014-03-08 02:40',
+  'location': {
+    'latitude': 6.92, 
+    'longitude': 103.20
+  },
+  'altitude': 35000,
+  'speed': 471,
+  'fuel': 23000
+}
+collection.insert_one(report)
+
+# Query reports from MongoDB
+for report in collection.find():
+  print(report['time'], report['location']['latitude'], report['location']['longitude'])
+
+# Update report in MongoDB
+filter = {'time': '2014-03-08 02:40'}
+update = {'$set': {'altitude': 36000}}
+collection.update_one(filter, update)
+
+# Delete report from MongoDB
+collection.delete_one({'time': '2014-03-08 02:40'})
 class OptimizedMH370Data(Model):
     """Optimized model for storing MH370-related data."""
     title = TextField(index=True)
@@ -327,12 +350,12 @@ class MH370Spider:
                                 entities=','.join(item['entities']),
                                 topics=','.join(item['topics'])
                             )
-                self.logger.info("Saved data to SQLite database.")
+                self.logger.info("Saved data to MongoDB database.")
             else:
                 self.logger.warning("No data to save.")
         except Exception as e:
-            self.logger.error(f'Error saving data to SQLite database: {str(e)}')
-            self.logger.exception("Error saving data to SQLite database.")
+            self.logger.error(f'Error saving data to MongoDB database: {str(e)}')
+            self.logger.exception("Error saving data to MongoDB database.")
 
     def is_valid_data(self, item: Dict[str, Any]) -> bool:
         """Validate the data before saving it to the database."""
@@ -825,7 +848,7 @@ class TestMH370Spider(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(google_data), 0)
 
     def test_save_data_valid(self):
-        """Test saving valid data to SQLite database."""
+        """Test saving valid data to MongoDB database."""
         # Valid data to save
         data = [
             {'title': 'Title 1', 'link': 'Link 1', 'snippet': 'Snippet 1', 'image_urls': ['Image 1'],
@@ -912,7 +935,7 @@ class TestMH370Spider(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(all_data[3]['source'], 'YouTube')
 
     def test_save_data_invalid(self):
-        """Test saving invalid data to SQLite database."""
+        """Test saving invalid data to MongoDB database."""
         # Invalid data to save
         data = [
             {'invalid': 'data'}
