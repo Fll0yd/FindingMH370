@@ -8,7 +8,7 @@ import time
 import unittest
 from typing import Any, Dict, List
 from unittest.mock import Mock, patch
-
+from tenacity import retry, stop_after_attempt, wait_exponential
 import aiohttp
 import gensim
 import praw
@@ -458,231 +458,254 @@ class MH370Spider:
         self.api_client = APIClient()
 
     # Twitter
+    @retry(stop=stop_after_attempt(MAX_RETRIES))
     async def fetch_twitter_data(self, query: str) -> List[Dict[str, Any]]:
-        async def fetch_twitter_data_with_retry():
-            try:
-                self.logger.info(f"Fetching Twitter data for query: {query}")
-                # Authenticate with Twitter API
-                auth = tweepy.OAuth1UserHandler(TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET)
-                api = tweepy.API(auth, timeout=NETWORK_TIMEOUT)
-                # Fetch data from Twitter API
-                tweets = api.search(q=query, tweet_mode='extended', count=100)
-                # Process fetched data
-                twitter_data = []
-                for tweet in tweets:
-                    # Perform sentiment analysis
-                    sentiment = TextBlob(tweet.full_text).sentiment.polarity
-                    # Perform entity recognition
-                    doc = self.nlp(tweet.full_text)
-                    entities = [ent.text for ent in doc.ents]
-                    # Perform topic modeling
-                    topics = self.model[doc]
-                    twitter_data.append({
-                        'title': tweet.user.name,
-                        'link': f"https://twitter.com/{tweet.user.screen_name}/status/{tweet.id_str}",
-                        'snippet': tweet.full_text,
-                        'image_urls': [media['media_url_https'] for media in tweet.entities.get('media', [])],
-                        'video_urls': [],  # Twitter API does not provide video URLs
-                        'source': 'Twitter',
-                        'sentiment': sentiment,
-                        'entities': entities,
-                        'topics': topics
-                    })
-                return twitter_data
-            except tweepy.TweepError as e:
-                self.logger.error(f'Error fetching Twitter data: {str(e)}')
-                self.logger.exception("Exception occurred during fetching Twitter data.")
-            except Exception as e:
-                self.logger.error(f'Unexpected error fetching Twitter data: {str(e)}')
-                self.logger.exception("Unexpected exception occurred during fetching Twitter data.")
-        # Retry fetching Twitter data if it fails
-        for _ in range(MAX_RETRIES):
-            twitter_data = await fetch_twitter_data_with_retry()
-            if twitter_data:
-                return twitter_data
-        return []
+        """Fetch data from Twitter API."""
+        try:
+            self.logger.info(f"Fetching Twitter data for query: {query}")
+            # Initialize Twitter API client
+            api = self.init_twitter_api()
+            # Fetch data from Twitter API
+            tweets = api.search(q=query, tweet_mode='extended', count=100)
+            # Process fetched data
+            twitter_data = []
+            for tweet in tweets:
+                # Perform sentiment analysis
+                sentiment = TextBlob(tweet.full_text).sentiment.polarity
+                # Perform entity recognition
+                doc = self.nlp(tweet.full_text)
+                entities = [ent.text for ent in doc.ents]
+                # Perform topic modeling
+                topics = self.model[doc]
+                twitter_data.append({
+                    'title': tweet.user.name,
+                    'link': f"https://twitter.com/{tweet.user.screen_name}/status/{tweet.id_str}",
+                    'snippet': tweet.full_text,
+                    'image_urls': [media['media_url_https'] for media in tweet.entities.get('media', [])],
+                    'video_urls': [],  # Twitter API does not provide video URLs
+                    'source': 'Twitter',
+                    'sentiment': sentiment,
+                    'entities': entities,
+                    'topics': topics
+                })
+            return twitter_data
+        except tweepy.TweepError as e:
+            self.logger.error(f'Error fetching Twitter data: {str(e)}')
+            self.logger.exception("Exception occurred during fetching Twitter data.")
+            raise
+        except Exception as e:
+            self.logger.error(f'Unexpected error fetching Twitter data: {str(e)}')
+            self.logger.exception("Unexpected exception occurred during fetching Twitter data.")
+            raise
+
+    def init_twitter_api(self):
+        """Initialize Twitter API client."""
+        auth = tweepy.OAuth1UserHandler(os.getenv("TWITTER_API_KEY"), os.getenv("TWITTER_API_SECRET"), os.getenv("TWITTER_ACCESS_TOKEN"), os.getenv("TWITTER_ACCESS_TOKEN_SECRET"))
+        return tweepy.API(auth, timeout=NETWORK_TIMEOUT)
     
     # Reddit
+    @retry(stop=stop_after_attempt(MAX_RETRIES))
     async def fetch_reddit_data(self, query: str) -> List[Dict[str, Any]]:
-        async def fetch_reddit_data_with_retry():
-            try:
-                self.logger.info(f"Fetching Reddit data for query: {query}")
-                # Authenticate with Reddit API
-                reddit = praw.Reddit(client_id=REDDIT_CLIENT_ID, client_secret=REDDIT_CLIENT_SECRET, user_agent=REDDIT_USER_AGENT)
-                # Fetch data from Reddit API
-                posts = reddit.subreddit('all').search(query, limit=100)
-                # Process fetched data
-                reddit_data = []
-                for post in posts:
-                    # Perform sentiment analysis
-                    sentiment = TextBlob(post.selftext).sentiment.polarity
-                    # Perform entity recognition
-                    doc = self.nlp(post.selftext)
-                    entities = [ent.text for ent in doc.ents]
-                    # Perform topic modeling
-                    topics = self.model[doc]
-                    reddit_data.append({
-                        'title': post.title,
-                        'link': post.url,
-                        'snippet': post.selftext,
-                        'image_urls': [post.preview['images'][0]['source']['url']] if post.preview else [],
-                        'video_urls': [post.media['oembed']['thumbnail_url']] if post.media else [],
-                        'source': 'Reddit',
-                        'sentiment': sentiment,
-                        'entities': entities,
-                        'topics': topics
-                    })
-                return reddit_data
-            except praw.exceptions.PRAWException as e:
-                self.logger.error(f'Error fetching Reddit data: {str(e)}')
-                self.logger.exception("Exception occurred during fetching Reddit data.")
-            except Exception as e:
-                self.logger.error(f'Unexpected error fetching Reddit data: {str(e)}')
-                self.logger.exception("Unexpected exception occurred during fetching Reddit data.")
-        # Retry fetching Reddit data if it fails
-        for _ in range(MAX_RETRIES):
-            reddit_data = await fetch_reddit_data_with_retry()
-            if reddit_data:
-                return reddit_data
-        return []
+        """Fetch data from Reddit API."""
+        try:
+            self.logger.info(f"Fetching Reddit data for query: {query}")
+            # Initialize Reddit API client
+            reddit = self.init_reddit_api()
+            # Fetch data from Reddit API
+            posts = reddit.subreddit('all').search(query, limit=100)
+            # Process fetched data
+            reddit_data = []
+            for post in posts:
+                # Perform sentiment analysis
+                sentiment = TextBlob(post.selftext).sentiment.polarity
+                # Perform entity recognition
+                doc = self.nlp(post.selftext)
+                entities = [ent.text for ent in doc.ents]
+                # Perform topic modeling
+                topics = self.model[doc]
+                reddit_data.append({
+                    'title': post.title,
+                    'link': post.url,
+                    'snippet': post.selftext,
+                    'image_urls': self.extract_image_urls(post),
+                    'video_urls': self.extract_video_urls(post),
+                    'source': 'Reddit',
+                    'sentiment': sentiment,
+                    'entities': entities,
+                    'topics': topics
+                })
+            return reddit_data
+        except praw.exceptions.PRAWException as e:
+            self.logger.error(f'Error fetching Reddit data: {str(e)}')
+            self.logger.exception("Exception occurred during fetching Reddit data.")
+            raise
+        except Exception as e:
+            self.logger.error(f'Unexpected error fetching Reddit data: {str(e)}')
+            self.logger.exception("Unexpected exception occurred during fetching Reddit data.")
+            raise
+
+    def init_reddit_api(self):
+        """Initialize Reddit API client."""
+        return praw.Reddit(client_id=os.getenv("REDDIT_CLIENT_ID"), client_secret=os.getenv("REDDIT_CLIENT_SECRET"), user_agent=os.getenv("REDDIT_USER_AGENT"))
+
+    def extract_image_urls(self, post):
+        """Extract image URLs from the post data."""
+        return [post.preview['images'][0]['source']['url']] if post.preview else []
+
+    def extract_video_urls(self, post):
+        """Extract video URLs from the post data."""
+        return [post.media['oembed']['thumbnail_url']] if post.media else []
     
     # Instagram
+    @retry(stop=stop_after_attempt(MAX_RETRIES))
     async def fetch_instagram_data(self, query: str) -> List[Dict[str, Any]]:
-        async def fetch_instagram_data_with_retry():
-            try:
-                self.logger.info(f"Fetching Instagram data for query: {query}")
-                # Authenticate with Instagram API
-                instagram_api = self.api_client.get_instagram_api()
-                # Fetch data from Instagram API
-                instagram_posts = await instagram_api.search(query, limit=100)
-                # Process fetched data
-                instagram_data = []
-                for post in instagram_posts:
-                    # Perform sentiment analysis
-                    sentiment = TextBlob(post.caption).sentiment.polarity
-                    # Perform entity recognition
-                    doc = self.nlp(post.caption)
-                    entities = [ent.text for ent in doc.ents]
-                    # Perform topic modeling
-                    topics = self.model[doc]
-                    instagram_data.append({
-                        'title': post.user.username,
-                        'link': f"https://www.instagram.com/p/{post.shortcode}/",
-                        'snippet': post.caption,
-                        'image_urls': [post.display_url],
-                        'video_urls': [post.video_url] if post.is_video else [],
-                        'source': 'Instagram',
-                        'sentiment': sentiment,
-                        'entities': entities,
-                        'topics': topics
-                    })
-                return instagram_data
-            except Exception as e:
-                self.logger.error(f'Error fetching Instagram data: {str(e)}')
-                self.logger.exception("Exception occurred during fetching Instagram data.")
-        # Retry fetching Instagram data if it fails
-        for _ in range(MAX_RETRIES):
-            instagram_data = await fetch_instagram_data_with_retry()
-            if instagram_data:
-                return instagram_data
-        return []
+        """Fetch data from Instagram API."""
+        try:
+            self.logger.info(f"Fetching Instagram data for query: {query}")
+            # Initialize Instagram API client
+            instagram = self.init_instagram_api()
+            # Fetch data from Instagram API
+            posts = instagram.search(query, limit=100)
+            # Process fetched data
+            instagram_data = []
+            for post in posts:
+                # Perform sentiment analysis
+                sentiment = TextBlob(post.caption).sentiment.polarity
+                # Perform entity recognition
+                doc = self.nlp(post.caption)
+                entities = [ent.text for ent in doc.ents]
+                # Perform topic modeling
+                topics = self.model[doc]
+                instagram_data.append({
+                    'title': post.user.username,
+                    'link': post.link,
+                    'snippet': post.caption,
+                    'image_urls': self.extract_image_urls(post),
+                    'video_urls': self.extract_video_urls(post),
+                    'source': 'Instagram',
+                    'sentiment': sentiment,
+                    'entities': entities,
+                    'topics': topics
+                })
+            return instagram_data
+        except InstagramAPIError as e:
+            self.logger.error(f'Error fetching Instagram data: {str(e)}')
+            self.logger.exception("Exception occurred during fetching Instagram data.")
+            raise
+        except Exception as e:
+            self.logger.error(f'Unexpected error fetching Instagram data: {str(e)}')
+            self.logger.exception("Unexpected exception occurred during fetching Instagram data.")
+            raise
+
+    def init_instagram_api(self):
+        """Initialize Instagram API client."""
+        return InstagramAPI(os.getenv("INSTAGRAM_USERNAME"), os.getenv("INSTAGRAM_PASSWORD"))
+
+    def extract_image_urls(self, post):
+        """Extract image URLs from the post data."""
+        return [post.image_url] if post.image_url else []
+
+    def extract_video_urls(self, post):
+        """Extract video URLs from the post data."""
+        return [post.video_url] if post.video_url else []
     
     # YouTube
+    @retry(stop=stop_after_attempt(MAX_RETRIES))
     async def fetch_youtube_data(self, query: str) -> List[Dict[str, Any]]:
-        async def fetch_youtube_data_with_retry():
-            try:
-                self.logger.info(f"Fetching YouTube data for query: {query}")
-                # Authenticate with YouTube API
-                youtube_api = self.api_client.get_youtube_api()
-                # Fetch data from YouTube API
-                youtube_videos = await youtube_api.search(query, limit=100)
-                # Process fetched data
-                youtube_data = []
-                for video in youtube_videos:
-                    # Perform sentiment analysis
-                    sentiment = TextBlob(video.description).sentiment.polarity
-                    # Perform entity recognition
-                    doc = self.nlp(video.description)
-                    entities = [ent.text for ent in doc.ents]
-                    # Perform topic modeling
-                    topics = self.model[doc]
-                    youtube_data.append({
-                        'title': video.title,
-                        'link': f"https://www.youtube.com/watch?v={video.id}",
-                        'snippet': video.description,
-                        'image_urls': [video.thumbnail_url],
-                        'video_urls': [f"https://www.youtube.com/watch?v={video.id}"],
-                        'source': 'YouTube',
-                        'sentiment': sentiment,
-                        'entities': entities,
-                        'topics': topics
-                    })
-                return youtube_data
-            except Exception as e:
-                self.logger.error(f'Error fetching YouTube data: {str(e)}')
-                self.logger.exception("Exception occurred during fetching YouTube data.")
-        # Retry fetching YouTube data if it fails
-        for _ in range(MAX_RETRIES):
-            youtube_data = await fetch_youtube_data_with_retry()
-            if youtube_data:
-                return youtube_data
-        return []
+        """Fetch data from YouTube API."""
+        try:
+            self.logger.info(f"Fetching YouTube data for query: {query}")
+            # Initialize YouTube API client
+            youtube_api = self.init_youtube_api()
+            # Fetch data from YouTube API
+            youtube_videos = await youtube_api.search(query, limit=100)
+            # Process fetched data
+            youtube_data = []
+            for video in youtube_videos:
+                # Perform sentiment analysis
+                sentiment = TextBlob(video.description).sentiment.polarity
+                # Perform entity recognition
+                doc = self.nlp(video.description)
+                entities = [ent.text for ent in doc.ents]
+                # Perform topic modeling
+                topics = self.model[doc]
+                youtube_data.append({
+                    'title': video.title,
+                    'link': f"https://www.youtube.com/watch?v={video.id}",
+                    'snippet': video.description,
+                    'image_urls': [video.thumbnail_url],
+                    'video_urls': [f"https://www.youtube.com/watch?v={video.id}"],
+                    'source': 'YouTube',
+                    'sentiment': sentiment,
+                    'entities': entities,
+                    'topics': topics
+                })
+            return youtube_data
+        except YouTubeAPIError as e:
+            self.logger.error(f'Error fetching YouTube data: {str(e)}')
+            self.logger.exception("Exception occurred during fetching YouTube data.")
+            raise
+        except Exception as e:
+            self.logger.error(f'Unexpected error fetching YouTube data: {str(e)}')
+            self.logger.exception("Unexpected exception occurred during fetching YouTube data.")
+            raise
+
+    def init_youtube_api(self):
+        """Initialize YouTube API client."""
+        return YouTubeAPI(os.getenv("YOUTUBE_API_KEY"))
     
+    @retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_exponential(multiplier=1, min=4, max=10))
     async def retry_fetch(self, fetch_function):
-        retry_attempts = 3
-        retry_delay = 5  # Initial delay in seconds
-        for attempt in range(retry_attempts):
-            try:
-                return await fetch_function()
-            except Exception as e:
-                self.logger.error(f'Retry attempt {attempt + 1} failed: {str(e)}')
-                self.logger.exception(f'Retry attempt {attempt + 1} failed.')
-                await asyncio.sleep(retry_delay)
-                retry_delay *= 2  # Exponential backoff
+        """Retry fetching data with exponential backoff."""
+        try:
+            return await fetch_function()
+        except Exception as e:
+            self.logger.error(f'Retry failed: {str(e)}')
+            self.logger.exception("Retry failed.")
+            raise
         self.logger.error("All retry attempts failed. Unable to fetch data.")
         return []
 
 class TestMH370Spider(unittest.IsolatedAsyncioTestCase):
-    @patch('mh370_spider.tweepy.API.search')
-    async def test_fetch_twitter_data_success(self, mock_search):
+    def setUp(self):
+        """Set up the test data."""
+        self.mock_search = patch('mh370_spider.tweepy.API.search').start()
+        self.spider = MH370Spider()
+
+    async def test_fetch_twitter_data_success(self):
         """Test fetching Twitter data successfully."""
         # Mock the Twitter API response
-        mock_search.return_value.items.return_value = [
+        self.mock_search.return_value.items.return_value = [
             Mock(user=Mock(screen_name='user1'), full_text='tweet 1', created_at='2024-03-18 10:00:00'),
             Mock(user=Mock(screen_name='user2'), full_text='tweet 2', created_at='2024-03-18 10:10:00')
         ]
-        # Initialize MH370Spider and fetch Twitter data
-        spider = MH370Spider()
-        twitter_data = await spider.fetch_twitter_data('MH370')
+        # Fetch Twitter data
+        twitter_data = await self.spider.fetch_twitter_data('MH370')
         # Check if Twitter data is fetched correctly
         self.assertEqual(len(twitter_data), 2)
         self.assertEqual(twitter_data[0]['title'], 'user1')
         self.assertEqual(twitter_data[0]['snippet'], 'tweet 1')
         self.assertEqual(twitter_data[1]['title'], 'user2')
         self.assertEqual(twitter_data[1]['snippet'], 'tweet 2')
-                     
-    @patch('mh370_spider.tweepy.API.search')
-    async def test_fetch_twitter_data_empty_response(self, mock_search):
+
+    async def test_fetch_twitter_data_empty_response(self):
         """Test fetching Twitter data with empty response."""
         # Mock the Twitter API response
-        mock_search.return_value.items.return_value = []
-        # Initialize MH370Spider and fetch Twitter data
-        spider = MH370Spider()
-        twitter_data = await spider.fetch_twitter_data('MH370')
+        self.mock_search.return_value.items.return_value = []
+        # Fetch Twitter data
+        twitter_data = await self.spider.fetch_twitter_data('MH370')
         # Check if Twitter data is fetched correctly
         self.assertEqual(len(twitter_data), 0)
 
-    @patch('mh370_spider.praw.Reddit')
-    async def test_fetch_reddit_data_success(self, mock_reddit):
+    async def test_fetch_reddit_data_success(self):
         """Test fetching Reddit data successfully."""
         # Mock the Reddit API response
         mock_posts = [Mock(author=Mock(name='author1'), title='Title 1', selftext='Text 1', created_utc=1647588000),
                       Mock(author=Mock(name='author2'), title='Title 2', selftext='Text 2', created_utc=1647588100)]
-        mock_reddit_instance = mock_reddit.return_value
+        mock_reddit_instance = self.mock_reddit.return_value
         mock_reddit_instance.subreddit.return_value.search.return_value = iter(mock_posts)
-        # Initialize MH370Spider and fetch Reddit data
-        spider = MH370Spider()
-        reddit_data = await spider.fetch_reddit_data('MH370')
+        # Fetch Reddit data
+        reddit_data = await self.spider.fetch_reddit_data('MH370')
         # Check if Reddit data is fetched correctly
         self.assertEqual(len(reddit_data), 2)
         self.assertEqual(reddit_data[0]['title'], 'author1')
@@ -690,86 +713,76 @@ class TestMH370Spider(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reddit_data[1]['title'], 'author2')
         self.assertEqual(reddit_data[1]['snippet'], 'Text 2')
 
-    @patch('mh370_spider.praw.Reddit')
-    async def test_fetch_reddit_data_empty_response(self, mock_reddit):
+    async def test_fetch_reddit_data_empty_response(self):
         """Test fetching Reddit data with empty response."""
         # Mock the Reddit API response
-        mock_reddit_instance = mock_reddit.return_value
+        mock_reddit_instance = self.mock_reddit.return_value
         mock_reddit_instance.subreddit.return_value.search.return_value = iter([])
-        # Initialize MH370Spider and fetch Reddit data
-        spider = MH370Spider()
-        reddit_data = await spider.fetch_reddit_data('MH370')
+        # Fetch Reddit data
+        reddit_data = await self.spider.fetch_reddit_data('MH370')
         # Check if Reddit data is fetched correctly
         self.assertEqual(len(reddit_data), 0)
-    
-    @patch('mh370_spider.facebook.GraphAPI.get_object')
-    async def test_fetch_facebook_data_success(self, mock_get_object):
+
+    async def test_fetch_facebook_data_success(self):
         """Test fetching Facebook data successfully."""
         # Mock the Facebook API response
-        mock_get_object.return_value = {'data': []}  # Add sample data here if necessary
-        # Initialize MH370Spider and fetch Facebook data
-        spider = MH370Spider()
-        facebook_data = await spider.fetch_facebook_data('MH370')
+        self.mock_get_object.return_value = {'data': []}  # Add sample data here if necessary
+        # Fetch Facebook data
+        facebook_data = await self.spider.fetch_facebook_data('MH370')
         # Check if Facebook data is fetched correctly
-        self.assertEqual(len(facebook_data), 0)  # Add assertions based on sample data returned
+        self.assertEqual(len(facebook_data), 0)
 
-    # Unit tests for Instagram data fetching function
-    @patch('mh370_spider.InstagramAPI')
-    async def test_fetch_instagram_data_success(self, mock_instagram):
+    async def test_fetch_instagram_data_success(self):
         """Test fetching Instagram data successfully."""
         # Mock the Instagram API response
-        mock_instagram_instance = mock_instagram.return_value
+        mock_instagram_instance = self.mock_instagram.return_value
         mock_instagram_instance.search.return_value = [
-            Mock(author=Mock(username='user1'), title='Title 1', selftext='Text 1', created_utc=1647588000),
-            Mock(author=Mock(username='user2'), title='Title 2', selftext='Text 2', created_utc=1647588100)
+            Mock(user=Mock(username='user1'), caption='Title 1', created_at='2024-03-18 10:00:00'),
+            Mock(user=Mock(username='user2'), caption='Title 2', created_at='2024-03-18 10:10:00')
         ]
-        # Initialize MH370Spider and fetch Instagram data
-        spider = MH370Spider()
-        instagram_data = await spider.fetch_instagram_data('MH370')
+        # Fetch Instagram data
+        instagram_data = await self.spider.fetch_instagram_data('MH370')
         # Check if Instagram data is fetched correctly
         self.assertEqual(len(instagram_data), 2)
-        self.assertEqual(instagram_data[0]['user'], 'user1')
-        self.assertEqual(instagram_data[1]['title'], 'Title 2')
+        self.assertEqual(instagram_data[0]['title'], 'user1')
+        self.assertEqual(instagram_data[0]['snippet'], 'Title 1')
+        self.assertEqual(instagram_data[1]['title'], 'user2')
+        self.assertEqual(instagram_data[1]['snippet'], 'Title 2')
 
-    @patch('mh370_spider.InstagramAPI')
-    async def test_fetch_instagram_data_empty_response(self, mock_instagram):
+    async def test_fetch_instagram_data_empty_response(self):
         """Test fetching Instagram data with empty response."""
         # Mock the Instagram API response
-        mock_instagram_instance = mock_instagram.return_value
+        mock_instagram_instance = self.mock_instagram.return_value
         mock_instagram_instance.search.return_value = []
-        # Initialize MH370Spider and fetch Instagram data
-        spider = MH370Spider()
-        instagram_data = await spider.fetch_instagram_data('MH370')
+        # Fetch Instagram data
+        instagram_data = await self.spider.fetch_instagram_data('MH370')
         # Check if Instagram data is fetched correctly
         self.assertEqual(len(instagram_data), 0)
 
-    # Unit tests for YouTube data fetching function
-    @patch('mh370_spider.YouTubeAPI')
-    async def test_fetch_youtube_data_success(self, mock_youtube):
+    async def test_fetch_youtube_data_success(self):
         """Test fetching YouTube data successfully."""
         # Mock the YouTube API response
-        mock_youtube_instance = mock_youtube.return_value
+        mock_youtube_instance = self.mock_youtube.return_value
         mock_youtube_instance.search.return_value = [
-            Mock(author=Mock(username='user1'), title='Title 1', selftext='Text 1', created_utc=1647588000),
-            Mock(author=Mock(username='user2'), title='Title 2', selftext='Text 2', created_utc=1647588100)
+            Mock(id='id1', title='Title 1', description='Text 1', thumbnail_url='thumbnail_url1'),
+            Mock(id='id2', title='Title 2', description='Text 2', thumbnail_url='thumbnail_url2')
         ]
-        # Initialize MH370Spider and fetch YouTube data
-        spider = MH370Spider()
-        youtube_data = await spider.fetch_youtube_data('MH370')
+        # Fetch YouTube data
+        youtube_data = await self.spider.fetch_youtube_data('MH370')
         # Check if YouTube data is fetched correctly
         self.assertEqual(len(youtube_data), 2)
-        self.assertEqual(youtube_data[0]['user'], 'user1')
+        self.assertEqual(youtube_data[0]['title'], 'Title 1')
+        self.assertEqual(youtube_data[0]['snippet'], 'Text 1')
         self.assertEqual(youtube_data[1]['title'], 'Title 2')
+        self.assertEqual(youtube_data[1]['snippet'], 'Text 2')
 
-    @patch('mh370_spider.YouTubeAPI')
-    async def test_fetch_youtube_data_empty_response(self, mock_youtube):
+    async def test_fetch_youtube_data_empty_response(self):
         """Test fetching YouTube data with empty response."""
         # Mock the YouTube API response
-        mock_youtube_instance = mock_youtube.return_value
+        mock_youtube_instance = self.mock_youtube.return_value
         mock_youtube_instance.search.return_value = []
-        # Initialize MH370Spider and fetch YouTube data
-        spider = MH370Spider()
-        youtube_data = await spider.fetch_youtube_data('MH370')
+        # Fetch YouTube data
+        youtube_data = await self.spider.fetch_youtube_data('MH370')
         # Check if YouTube data is fetched correctly
         self.assertEqual(len(youtube_data), 0)
 
@@ -791,9 +804,8 @@ class TestMH370Spider(unittest.IsolatedAsyncioTestCase):
             </body>
         </html>
         """
-        # Initialize MH370Spider and parse Google search results
-        spider = MH370Spider()
-        google_data = spider.parse_google(response)
+        # Parse Google search results
+        google_data = self.spider.parse_google(response)
         # Check if Google data is parsed correctly
         self.assertEqual(len(google_data), 2)
         self.assertEqual(google_data[0]['title'], 'Title 1')
@@ -806,9 +818,8 @@ class TestMH370Spider(unittest.IsolatedAsyncioTestCase):
         # Mock response object
         response = Mock()
         response.text = "<html><body></body></html>"
-        # Initialize MH370Spider and parse Google search results
-        spider = MH370Spider()
-        google_data = spider.parse_google(response)
+        # Parse Google search results
+        google_data = self.spider.parse_google(response)
         # Check if Google data is parsed correctly
         self.assertEqual(len(google_data), 0)
 
@@ -821,9 +832,8 @@ class TestMH370Spider(unittest.IsolatedAsyncioTestCase):
             {'title': 'Title 2', 'link': 'Link 2', 'snippet': 'Snippet 2', 'image_urls': ['Image 2'],
              'video_urls': ['Video 2'], 'source': 'Test'}
         ]
-        # Initialize MH370Spider and save data
-        spider = MH370Spider()
-        spider.save_data(data)
+        # Save data
+        self.spider.save_data(data)
         # Check if data is saved correctly
         saved_data = OptimizedMH370Data.select()
         self.assertEqual(len(saved_data), len(data))
@@ -834,7 +844,7 @@ class TestMH370Spider(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(saved_item.image_urls, ','.join(data_item['image_urls']))
             self.assertEqual(saved_item.video_urls, ','.join(data_item['video_urls']))
             self.assertEqual(saved_item.source, data_item['source'])
-    
+
     @patch('mh370_spider.tk.Tk')
     @patch('mh370_spider.DataMonitorApp')
     @patch('mh370_spider.profile_code')
@@ -884,20 +894,15 @@ class TestMH370Spider(unittest.IsolatedAsyncioTestCase):
         # Check if all data is fetched correctly
         self.assertEqual(len(all_data), 0)
 
-    @patch('mh370_spider.MH370Spider.fetch_twitter_data')
-    @patch('mh370_spider.MH370Spider.fetch_reddit_data')
-    @patch('mh370_spider.MH370Spider.fetch_instagram_data')
-    @patch('mh370_spider.MH370Spider.fetch_youtube_data')
-    async def test_fetch_all_data_with_data(self, mock_fetch_twitter_data, mock_fetch_reddit_data, mock_fetch_instagram_data, mock_fetch_youtube_data):
+    async def test_fetch_all_data_with_data(self):
         """Test fetching all data with actual data."""
         # Mock the fetch methods to return actual data
-        mock_fetch_twitter_data.return_value = [{'source': 'Twitter', 'data': 'Data'}]
-        mock_fetch_reddit_data.return_value = [{'source': 'Reddit', 'data': 'Data'}]
-        mock_fetch_instagram_data.return_value = [{'source': 'Instagram', 'data': 'Data'}]
-        mock_fetch_youtube_data.return_value = [{'source': 'YouTube', 'data': 'Data'}]
-        # Initialize MH370Spider and fetch all data
-        spider = MH370Spider()
-        all_data = await spider.fetch_all_data('MH370')
+        self.spider.fetch_twitter_data = Mock(return_value=[{'source': 'Twitter', 'data': 'Data'}])
+        self.spider.fetch_reddit_data = Mock(return_value=[{'source': 'Reddit', 'data': 'Data'}])
+        self.spider.fetch_instagram_data = Mock(return_value=[{'source': 'Instagram', 'data': 'Data'}])
+        self.spider.fetch_youtube_data = Mock(return_value=[{'source': 'YouTube', 'data': 'Data'}])
+        # Fetch all data
+        all_data = await self.spider.fetch_all_data('MH370')
         # Check if all data is fetched correctly
         self.assertEqual(len(all_data), 4)
         self.assertEqual(all_data[0]['source'], 'Twitter')
@@ -905,43 +910,45 @@ class TestMH370Spider(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(all_data[2]['source'], 'Instagram')
         self.assertEqual(all_data[3]['source'], 'YouTube')
 
-def test_save_data_invalid(self):
+    def test_save_data_invalid(self):
         """Test saving invalid data to SQLite database."""
         # Invalid data to save
         data = [
             {'invalid': 'data'}
         ]
-        # Initialize MH370Spider and save data
-        spider = MH370Spider()
+        # Save data
         with self.assertRaises(Exception):
-            spider.save_data(data)
+            self.spider.save_data(data)
 
-def test_migrate_data(self):
-    """Test migrating data from the old database to the new database."""
-    # Old schema data to migrate
-    old_data = [
-        {'title': 'Title 1', 'link': 'Link 1', 'snippet': 'Snippet 1', 'image_urls': ['Image 1'],
-        'video_urls': ['Video 1'], 'source': 'Test'},
-        {'title': 'Title 2', 'link': 'Link 2', 'snippet': 'Snippet 2', 'image_urls': ['Image 2'],
-        'video_urls': ['Video 2'], 'source': 'Test'}
-    ]
-    # Save the old schema data to the old database
-    for item in old_data:
-        MH370Data.create(**item)
-    # Initialize MH370Spider and migrate data
-    spider = MH370Spider()
-    spider.migrate_data()
-    # Check if data is migrated correctly
-    new_data = OptimizedMH370Data.select()
-    self.assertEqual(len(new_data), len(old_data))
-    for new_item, old_item in zip(new_data, old_data):
-        self.assertEqual(new_item.title, old_item['title'])
-        self.assertEqual(new_item.link, old_item['link'])
-        self.assertEqual(new_item.snippet, old_item['snippet'])
-        self.assertEqual(new_item.image_urls, ','.join(old_item['image_urls']))
-        self.assertEqual(new_item.video_urls, ','.join(old_item['video_urls']))
-        self.assertEqual(new_item.source, old_item['source'])
-    
+    def test_migrate_data(self):
+        """Test migrating data from the old database to the new database."""
+        # Old schema data to migrate
+        old_data = [
+            {'title': 'Title 1', 'link': 'Link 1', 'snippet': 'Snippet 1', 'image_urls': ['Image 1'],
+            'video_urls': ['Video 1'], 'source': 'Test'},
+            {'title': 'Title 2', 'link': 'Link 2', 'snippet': 'Snippet 2', 'image_urls': ['Image 2'],
+            'video_urls': ['Video 2'], 'source': 'Test'}
+        ]
+        # Save the old schema data to the old database
+        for item in old_data:
+            MH370Data.create(**item)
+        # Migrate data
+        self.spider.migrate_data()
+        # Check if data is migrated correctly
+        migrated_data = OptimizedMH370Data.select()
+        self.assertEqual(len(migrated_data), len(old_data))
+        for migrated_item, old_item in zip(migrated_data, old_data):
+            self.assertEqual(migrated_item.title, old_item['title'])
+            self.assertEqual(migrated_item.link, old_item['link'])
+            self.assertEqual(migrated_item.snippet, old_item['snippet'])
+            self.assertEqual(migrated_item.image_urls, ','.join(old_item['image_urls']))
+            self.assertEqual(migrated_item.video_urls, ','.join(old_item['video_urls']))
+            self.assertEqual(migrated_item.source, old_item['source'])
+        
+    def tearDown(self):
+        """Clean up the test data."""
+        patch.stopall()
+
 def profile_code():
     """Run the code with profiling and print the profiling results."""
     # Run the code with profiling
@@ -966,31 +973,14 @@ def analyze_profile():
 
 def main():
     """Main function to run the application."""
-    # Initialize the root window
     root = tk.Tk()
-    # Initialize the application
     app = DataMonitorApp(root)
-    # Run the application
     root.mainloop()
-    # Profile the code
     profile_code()
-    # Analyze the profiling results
     analyze_profile()
-    # Run the unit tests
     unittest.main()
-   
+
 if __name__ == '__main__':
-    main()
-    # Call the schedule_backup function to start scheduling backups
-    schedule_backup()
-    # Create tables if they don't exist
     with db.connection_context():
-        db.create_tables([OptimizedMH370Data])
-    root = tk.Tk()
-    app = DataMonitorApp(root)
-    root.mainloop()
-    # Profile the code
-    profile_code()
-    # Analyze the profiling results
-    analyze_profile()
-    unittest.main()
+        db.create_tables([OptimizedMH370Data], safe=True)
+    main()
