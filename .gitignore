@@ -1,4 +1,4 @@
 *.txt
 *.js
-config
-*.yaml
+config.yml
+*.yml
