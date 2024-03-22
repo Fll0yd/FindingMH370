@@ -31,8 +31,8 @@ from textblob import TextBlob
 import tkinter as tk
 from tkinter import ttk
 import logging
-from instagram_private_api import Client as InstagramAPI
-from googleapiclient import discovery as YouTubeAPI
+from instagram_private_api import Client as InstagramAPI, InstagramAPIError
+from googleapiclient import discovery as YouTubeAPI, YouTubeAPIError
 
 # Configure logging level and format
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -645,7 +645,7 @@ class MH370Spider:
                     'topics': topics
                 })
             return instagram_data
-        except ClientError as e:
+        except InstagramAPIError as e:
             self.logger.error(f'Error fetching Instagram data: {str(e)}')
             self.logger.exception("Exception occurred during fetching Instagram data.")
             raise
@@ -698,7 +698,7 @@ class MH370Spider:
                     'topics': topics
                 })
             return youtube_data
-        except HttpError as e:
+        except YouTubeAPIError as e:
             self.logger.error(f'Error fetching YouTube data: {str(e)}')
             self.logger.exception("Exception occurred during fetching YouTube data.")
             raise
