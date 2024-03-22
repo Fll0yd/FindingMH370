@@ -17,6 +17,8 @@ import schedule
 import spacy
 import tweepy
 import yaml
+import json
+from  peewee import CharField, Model, TextField
 from bs4 import BeautifulSoup
 from googleapiclient import discovery
 from instagram_private_api import Client
@@ -67,6 +69,7 @@ collection.update_one(filter, update)
 
 # Delete report from MongoDB
 collection.delete_one({'time': '2014-03-08 02:40'})
+
 class OptimizedMH370Data(Model):
     """Optimized model for storing MH370-related data."""
     title = TextField(index=True)
