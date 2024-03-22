@@ -30,10 +30,9 @@ from scrapy.exceptions import NotConfigured
 from textblob import TextBlob
 import tkinter as tk
 from tkinter import ttk
-from scraper_module import MH370WebScraper
-from instagram_module import InstagramAPI
-from youtube_module import YouTubeAPI
-import logging  
+import logging
+from instagram_private_api import Client as InstagramAPI
+from googleapiclient import discovery as YouTubeAPI
 
 # Configure logging level and format
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -282,6 +281,14 @@ class APIClient:
         else:
             raise ValueError(f"Unsupported platform: {platform}")
 
+class ScrapyWebScraper:
+    """Class for web scraping using Scrapy."""
+    pass
+
+class BeautifulsoupWebScraper:
+    """Class for web scraping using BeautifulSoup."""
+    pass
+
 class MH370Spider:
     def __init__(self):
         """Initialize the spider."""
@@ -293,7 +300,7 @@ class MH370Spider:
         self.nlp = spacy.load('en_core_web_sm')
         self.model = gensim.models.LdaModel.load('topic_model')
         # Initialize the web scraper
-        self.scraper = MH370WebScraper()
+        self.scraper = ScrapyWebScraper()
         self.instagram_data = InstagramAPI()
         self.youtube_data = YouTubeAPI()
 
@@ -638,7 +645,7 @@ class MH370Spider:
                     'topics': topics
                 })
             return instagram_data
-        except InstagramAPIError as e:
+        except ClientError as e:
             self.logger.error(f'Error fetching Instagram data: {str(e)}')
             self.logger.exception("Exception occurred during fetching Instagram data.")
             raise
@@ -691,7 +698,7 @@ class MH370Spider:
                     'topics': topics
                 })
             return youtube_data
-        except YouTubeAPIError as e:
+        except HttpError as e:
             self.logger.error(f'Error fetching YouTube data: {str(e)}')
             self.logger.exception("Exception occurred during fetching YouTube data.")
             raise
