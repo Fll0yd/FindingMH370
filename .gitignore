@@ -1,3 +1,4 @@
 *.txt
 *.js
-config.YAML
+config
+*.yaml
