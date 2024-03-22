@@ -1,6 +1,6 @@
 import asyncio
 import cProfile
-import logging
+from logging import configure_logging
 import os
 import pstats
 import shutil
@@ -30,19 +30,43 @@ from scrapy.exceptions import NotConfigured
 from textblob import TextBlob
 import tkinter as tk
 from tkinter import ttk
+from scraper_module import MH370WebScraper
+from instagram_module import InstagramAPI
+from youtube_module import YouTubeAPI
+import logging  
 
 # Configure logging level and format
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Load configuration settings from config.yaml
+def load_config(filename: str) -> Dict[str, Any]:
+    """Load configuration settings from YAML file."""
+    try:
+        with open(filename, 'r') as file:
+            config = yaml.safe_load(file)
+        return config
+    except FileNotFoundError:
+        logger.error("Config file not found.")
+        return {}
+    except yaml.YAMLError as e:
+        logger.error(f'Error parsing YAML file: {e}')
+        return {}
+
+config = load_config('config.yaml')
 
 # Set timeouts and buffer sizes for network operations
 NETWORK_TIMEOUT = 10  # seconds
 BUFFER_SIZE = 8192  # bytes
 MAX_RETRIES = 5  # Replace 5 with the number of maximum retries you want
 
+# Set MongoDB connection parameters from config
+MONGODB_URI = config.get('MONGODB_URI', 'mongodb://localhost:27017/')
+MONGODB_DB = config.get('MONGODB_DB', 'mh370')
+
 # Connect to MongoDB
-client = MongoClient ('mongodb://localhost:27017/')
-db = client['mh370']
+client = MongoClient (MONGODB_URI)
+db = client[MONGODB_DB]
 collection = db['data']
 
 # Insert report into MongoDB collection
@@ -70,7 +94,7 @@ collection.update_one(filter, update)
 # Delete report from MongoDB
 collection.delete_one({'time': '2014-03-08 02:40'})
 
-class OptimizedMH370Data(Model):
+class MH370Data(Model):
     """Optimized model for storing MH370-related data."""
     title = TextField(index=True)
     link = TextField()
@@ -92,7 +116,7 @@ def migrate_data() -> None:
         logger.info(f"Found {len(old_data)} items in MH370Data.")
         with db.atomic():
             for item in old_data:
-                OptimizedMH370Data.create(
+                MH370Data.create(
                     title=item.title,
                     link=item.link,
                     snippet=item.snippet,
@@ -114,7 +138,7 @@ def initiate_migration(old_schema_data: List[Dict[str, Any]]) -> bool:
     try:
         with db.atomic():
             for item in old_schema_data:
-                OptimizedMH370Data.create(
+                MH370Data.create(
                     title=item['title'],
                     link=item['link'],
                     snippet=item['snippet'],
@@ -134,7 +158,7 @@ def initiate_migration(old_schema_data: List[Dict[str, Any]]) -> bool:
 def check_new_schema_data() -> bool:
     """Check if data exists in the new schema."""
     try:
-        return OptimizedMH370Data.select().exists()
+        return MH370Data.select().exists()
     except Exception as e:
         logger.error(f"Error while checking new schema data: {e}")
         return False
@@ -147,24 +171,11 @@ def is_valid_data(data: Dict[str, Any]) -> bool:
 def backup_database() -> None:
     """Create a backup of the database."""
     try:
-        backup_path = 'mh370_optimized_backup.db'
-        shutil.copyfile('mh370_optimized.db', backup_path)
+        backup_path = 'mh370__backup.db'
+        shutil.copyfile('mh370_.db', backup_path)
         logger.info("Database backup created successfully.")
     except Exception as e:
         logger.error(f"Error during database backup: {e}")
-
-def get_config() -> Dict[str, Any]:
-    """Load configuration from YAML file."""
-    try:
-        with open('config.yaml', 'r') as file:
-            config = yaml.safe_load(file)
-        return config
-    except FileNotFoundError:
-        logger.error("Config file not found.")
-        return {}
-    except yaml.YAMLError as e:
-        logger.error(f'Error parsing YAML file: {e}')
-        return {}
 
 def schedule_backup() -> None:
     """Schedule backup to run daily at midnight."""
@@ -248,15 +259,26 @@ class APIClient:
     def get_api_client(self, platform: str):
         """Get the authenticated API client for the specified platform."""
         if platform == 'twitter':
-            auth = tweepy.OAuth1UserHandler(TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN,
-                                            TWITTER_ACCESS_TOKEN_SECRET)
+            auth = tweepy.OAuth1UserHandler(
+                self.config.get('TWITTER_API_KEY'),
+                self.config.get('TWITTER_API_SECRET'),
+                self.config.get('TWITTER_ACCESS_TOKEN'),
+                self.config.get('TWITTER_ACCESS_TOKEN_SECRET')
+            )
             return tweepy.API(auth, timeout=NETWORK_TIMEOUT)
         elif platform == 'reddit':
-            return praw.Reddit(client_id=REDDIT_CLIENT_ID, client_secret=REDDIT_CLIENT_SECRET, user_agent=REDDIT_USER_AGENT)
+            return praw.Reddit(
+                client_id=self.config.get('REDDIT_CLIENT_ID'),
+                client_secret=self.config.get('REDDIT_CLIENT_SECRET'),
+                user_agent=self.config.get('REDDIT_USER_AGENT')
+            )
         elif platform == 'instagram':
-            return InstagramAPI()
+            return InstagramAPI(
+                self.config.get('INSTAGRAM_USERNAME'),
+                self.config.get('INSTAGRAM_PASSWORD')
+            )
         elif platform == 'youtube':
-            return YouTubeAPI()
+            return YouTubeAPI(self.config.get('YOUTUBE_API_KEY'))
         else:
             raise ValueError(f"Unsupported platform: {platform}")
 
@@ -342,7 +364,7 @@ class MH370Spider:
                 with db.atomic():
                     for item in data:
                         if self.is_valid_data(item):
-                            OptimizedMH370Data.create(
+                            MH370Data.create(
                                 title=item['title'],
                                 link=item['link'],
                                 snippet=item['snippet'],
@@ -364,6 +386,7 @@ class MH370Spider:
         """Validate the data before saving it to the database."""
         required_fields = ['title', 'link', 'snippet', 'image_urls', 'video_urls', 'source', 'sentiment', 'entities', 'topics']
         return all(field in item for field in required_fields)
+
 class TestDataSaving(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -377,14 +400,14 @@ class TestDataSaving(unittest.TestCase):
         ]
         asyncio.run(self.spider.save_data(valid_data))
         # Check if the data was saved to the database
-        saved_data = OptimizedMH370Data.select().where(OptimizedMH370Data.title == 'Valid Title 1')
+        saved_data = MH370Data.select().where(MH370Data.title == 'Valid Title 1')
         self.assertEqual(len(saved_data), 1)
         
     def test_save_empty_data(self):
         """Test saving empty data to the database."""
         asyncio.run(self.spider.save_data([]))
         # Check if the data was not saved to the database
-        saved_data = OptimizedMH370Data.select().where(OptimizedMH370Data.title == 'Valid Title 1')
+        saved_data = MH370Data.select().where(MH370Data.title == 'Valid Title 1')
         self.assertEqual(len(saved_data), 0)
 
     def test_error_handling(self):
@@ -396,7 +419,7 @@ class TestDataSaving(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         """Clean up the test environment."""
-        OptimizedMH370Data.delete().where(OptimizedMH370Data.title == 'Valid Title 1').execute()
+        MH370Data.delete().where(MH370Data.title == 'Valid Title 1').execute()
 
 # Unit tests for the migration process
 class TestMigration(unittest.TestCase):
@@ -419,7 +442,7 @@ class TestMigration(unittest.TestCase):
         # Migrate the data
         self.spider.migrate_data()
         # Check if the data was migrated to the new database
-        new_schema_data = OptimizedMH370Data.select()
+        new_schema_data = MH370Data.select()
         self.assertEqual(len(new_schema_data), len(old_schema_data))
         for old_item, new_item in zip(old_schema_data, new_schema_data):
             self.assertEqual(old_item['title'], new_item.title)
@@ -463,7 +486,7 @@ class TestBackup(unittest.TestCase):
         # Check if the backup file contains the correct data
         with open(self.backup_file_path, 'r') as backup_file:
             backup_data = json.load(backup_file)
-        database_data = [item for item in OptimizedMH370Data.select()]
+        database_data = [item for item in MH370Data.select()]
         self.assertEqual(len(backup_data), len(database_data))
         for backup_item, database_item in zip(backup_data, database_data):
             self.assertEqual(backup_item['title'], database_item.title)
@@ -862,7 +885,7 @@ class TestMH370Spider(unittest.IsolatedAsyncioTestCase):
         # Save data
         self.spider.save_data(data)
         # Check if data is saved correctly
-        saved_data = OptimizedMH370Data.select()
+        saved_data = MH370Data.select()
         self.assertEqual(len(saved_data), len(data))
         for saved_item, data_item in zip(saved_data, data):
             self.assertEqual(saved_item.title, data_item['title'])
@@ -962,7 +985,7 @@ class TestMH370Spider(unittest.IsolatedAsyncioTestCase):
         # Migrate data
         self.spider.migrate_data()
         # Check if data is migrated correctly
-        migrated_data = OptimizedMH370Data.select()
+        migrated_data = MH370Data.select()
         self.assertEqual(len(migrated_data), len(old_data))
         for migrated_item, old_item in zip(migrated_data, old_data):
             self.assertEqual(migrated_item.title, old_item['title'])
@@ -1009,5 +1032,5 @@ def main():
 
 if __name__ == '__main__':
     with db.connection_context():
-        db.create_tables([OptimizedMH370Data], safe=True)
+        db.create_tables([MH370Data], safe=True)
     main()
