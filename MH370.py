@@ -33,7 +33,6 @@ from tkinter import ttk
 import logging
 from instagram_private_api import Client as InstagramAPI, InstagramAPIError
 from googleapiclient import discovery as YouTubeAPI, YouTubeAPIError
-from urllib.parse import urljoin
 
 # Configure logging level and format
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -304,44 +303,7 @@ class MH370Spider:
         self.scraper = ScrapyWebScraper()
         self.instagram_data = InstagramAPI()
         self.youtube_data = YouTubeAPI()
-        self.user_agent = "Your User-Agent String"
-        self.session = requests.Session()
-        self.session.headers.update({'User-Agent': self.user_agent})
 
-    def fetch_page(self, url):
-        """Fetch a web page and parse it."""
-        try:
-            response = self.session.get(url)
-            response.raise_for_status()  # Raise exception for 4xx and 5xx status codes
-            return response.text
-        except requests.RequestException as e:
-            print(f"Error fetching page: {e}")
-            return None
-
-    def parse_page(self, html):
-        """Parse the HTML content of a web page."""
-        if html is None:
-            return None
-        soup = BeautifulSoup(html, 'html.parser')
-        # Add parsing logic here
-        return parsed_data
-
-    def scrape_website(self, base_url):
-        """Scrape a website."""
-        robots_txt_url = urljoin(base_url, '/robots.txt')
-        robots_txt = self.fetch_page(robots_txt_url)
-        if robots_txt:
-            # Parse robots.txt and respect directives
-            # Implement rate limiting and other crawling etiquette
-            pass
-
-        # Start scraping pages from the website
-        # Example: scrape multiple pages under base_url
-        for page_url in [urljoin(base_url, 'page1'), urljoin(base_url, 'page2')]:
-            html = self.fetch_page(page_url)
-            data = self.parse_page(html)
-            # Process scraped data
-                    
     async def parse(self, response: Any) -> None:
         """Parse the response and fetch data from different platforms."""
         try:
@@ -1079,4 +1041,3 @@ if __name__ == '__main__':
     with db.connection_context():
         db.create_tables([MH370Data], safe=True)
     main()
-    spider.scrape_website('https://example.com')
